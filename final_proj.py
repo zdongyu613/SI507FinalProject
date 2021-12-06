@@ -5,7 +5,10 @@ import re
 from datetime import datetime
 from matplotlib import pyplot as plt
 import matplotlib.dates as mdates
+import networkx as nx
+import numpy as np
 from pandas import DataFrame
+import math
 
 KEY = API.key
 CME_URL = API.cme
@@ -28,13 +31,13 @@ def get_cme():
     print('raw data collected!')
 
     print('organizing json...')
-    d = load_cme_raw(raw)
-    print('organization complete!')
+    d = decode_cme_raw(raw)
+    print('organization complete! totally {} cme events during {} to {}\n'.format(len(d), start_date, end_date))
 
     return d
 
 
-def load_cme_raw(raw):
+def decode_cme_raw(raw):
     d = []
     cid = 0
     for i in raw:
@@ -52,7 +55,7 @@ def load_cme_raw(raw):
         stored_time = formated_time.strftime(time_format)
 
         j = {
-            'cid': cid,
+            'cid': 'C{}'.format(cid),
             'time': stored_time,
             'lat': round(i['latitude']),
             'lon': round(i['longitude'])
@@ -75,13 +78,13 @@ def get_flr():
     print('raw data collected!')
 
     print('organizing json...')
-    d = load_flr_raw(raw)
-    print('organization complete!')
+    d = decode_flr_raw(raw)
+    print('organization complete! totally {} flr events during {} to {}\n'.format(len(d), start_date, end_date))
 
     return d
 
 
-def load_flr_raw(raw):
+def decode_flr_raw(raw):
     d = []
     fid = 0
     for i in raw:
@@ -111,7 +114,7 @@ def load_flr_raw(raw):
             lon += int(pos[1][1:])
 
         j = {
-            'fid': fid,
+            'fid': 'F{}'.format(fid),
             'time': stored_time,
             'lat': lat,
             'lon': lon
@@ -123,24 +126,82 @@ def load_flr_raw(raw):
 
 
 def store_cache(cme, flr):
+    print('storing data from local cache...\n')
     with open('cme_from{}to{}.json'.format(start_date, end_date), 'w') as c:
         c.write(json.dumps(cme))
+        print('cme storing complete! totally {} events stored.'.format(len(cme)))
     with open('flr_from{}to{}.json'.format(start_date, end_date), 'w') as f:
         f.write(json.dumps(flr))
+        print('flr storing complete! totally {} events stored.'.format(len(flr)))
+    with open('correlations_from{}to{}.json'.format(start_date, end_date), 'w') as cc:
+        c_list = calculate_all_cc(cme, flr)
+        cc.write(json.dumps(c_list))
+        print('correlations storing complete! totally {} correlations stored'.format(len(c_list)))
+
     return 0
 
 
-def load_cache(cmefile, flrfile):
+def load_cache(cmefile, flrfile, ccfile):
     with open(cmefile) as c:
         cme = json.load(c)
     with open(flrfile) as f:
         flr = json.load(f)
-    return cme, flr
+    with open(ccfile) as cc:
+        coef = json.load(cc)
+    return cme, flr, coef
+
+
+def calculate_time_correlation(cme_event, flr_event):
+    causation = 1
+    c_time = mdates.date2num(cme_event['time'])
+    f_time = mdates.date2num(flr_event['time'])
+    dt = c_time - f_time
+    if abs(dt) > 50:
+        return 0
+    if dt < 0:
+        causation = 0
+    relation = 1 / math.pow(2, math.sqrt(abs(dt)))
+
+    return causation, relation
+
+
+def calculate_position_correlation(cme_event, flr_event):
+    c_lat, c_lon = cme_event['lat'], cme_event['lon']
+    f_lat, f_lon = flr_event['lat'], flr_event['lon']
+
+    dlat = math.radians(c_lat - f_lat)
+    dlon = math.radians(c_lon - f_lon)
+
+    a = math.sin(dlat / 2) * math.sin(dlat / 2) + math.cos(math.radians(c_lat)) \
+        * math.cos(math.radians(f_lat)) * math.sin(dlon / 2) * math.sin(dlon / 2)
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+    return 1 / math.pow(2, c ** 2)
 
 
 def calculate_correlation_coefficient(cme_event, flr_event):
-    pass
+    time_cc = calculate_time_correlation(cme_event, flr_event)
+    if time_cc == 0:
+        return None
+    pos_cc = calculate_position_correlation(cme_event, flr_event)
+    cid = cme_event['cid']
+    fid = flr_event['fid']
+    cc = time_cc[1] * pos_cc
+    if time_cc[0] == 0:
+        cc *= -1
+    return cid, fid, cc
 
+
+def calculate_all_cc(cme_list, flr_list):
+    cc_list = []
+    print('calculating all correlation coefficients...')
+    for i in cme_list:
+        for j in flr_list:
+            coef = calculate_correlation_coefficient(i, j)
+            if coef is not None:
+                cc_list.append(coef)
+    print('calculating complete! totally {} valid correlations found.')
+    return cc_list
 
 def plot_event_density(events, event_name):
     t_series = [datetime.strptime(i['time'], time_format) for i in events]
@@ -166,4 +227,4 @@ def plot_both_density(cme, flr):
 
 
 if __name__ == '__main__':
-    store_cache(cme=get_cme(),flr=get_flr())
+    store_cache(get_cme(), get_flr())
