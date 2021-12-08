@@ -17,6 +17,7 @@ FLR_URL = API.flr
 start_date = '2017-01-01'
 end_date = '2021-11-30'
 time_format = '%Y-%m-%d %H:%M'
+cc_threshold = 0.01
 
 
 def get_cme():
@@ -127,27 +128,34 @@ def decode_flr_raw(raw):
 
 def store_cache(cme, flr):
     print('storing data from local cache...\n')
-    with open('cme_from{}to{}.json'.format(start_date, end_date), 'w') as c:
+    with open('cme_from_{}_to_{}.json'.format(start_date, end_date), 'w') as c:
         c.write(json.dumps(cme))
         print('cme storing complete! totally {} events stored.'.format(len(cme)))
-    with open('flr_from{}to{}.json'.format(start_date, end_date), 'w') as f:
+    with open('flr_from_{}_to_{}.json'.format(start_date, end_date), 'w') as f:
         f.write(json.dumps(flr))
         print('flr storing complete! totally {} events stored.'.format(len(flr)))
-    with open('correlations_from{}to{}.json'.format(start_date, end_date), 'w') as cc:
-        c_list = calculate_all_cc(cme, flr)
+    with open('correlations_from_{}_to_{}.json'.format(start_date, end_date), 'w') as cc:
+        c_list = calculate_all_cc(cme, flr, cc_threshold)
         cc.write(json.dumps(c_list))
         print('correlations storing complete! totally {} correlations stored'.format(len(c_list)))
+        print('')
 
     return 0
 
 
 def load_cache(cmefile, flrfile, ccfile):
     with open(cmefile) as c:
+        print('loading cme...')
         cme = json.load(c)
+        print('cme loading complete! totally {} events loaded.'.format(len(cme)))
     with open(flrfile) as f:
+        print('loading flr...')
         flr = json.load(f)
+        print('flr loading complete! totally {} events loaded.'.format(len(flr)))
     with open(ccfile) as cc:
+        print('loading correlations...')
         coef = json.load(cc)
+        print('correlations loading complete! totally {} correlations loaded.'.format(len(coef)))
     return cme, flr, coef
 
 
@@ -156,7 +164,7 @@ def calculate_time_correlation(cme_event, flr_event):
     c_time = mdates.date2num(cme_event['time'])
     f_time = mdates.date2num(flr_event['time'])
     dt = c_time - f_time
-    if abs(dt) > 50:
+    if abs(dt) > 40:
         return 0
     if dt < 0:
         causation = 0
@@ -179,7 +187,7 @@ def calculate_position_correlation(cme_event, flr_event):
     return 1 / math.pow(2, c ** 2)
 
 
-def calculate_correlation_coefficient(cme_event, flr_event):
+def calculate_correlation_coefficient(cme_event, flr_event, threshold):
     time_cc = calculate_time_correlation(cme_event, flr_event)
     if time_cc == 0:
         return None
@@ -187,20 +195,22 @@ def calculate_correlation_coefficient(cme_event, flr_event):
     cid = cme_event['cid']
     fid = flr_event['fid']
     cc = time_cc[1] * pos_cc
+    if cc < threshold:
+        return None
     if time_cc[0] == 0:
         cc *= -1
     return cid, fid, cc
 
 
-def calculate_all_cc(cme_list, flr_list):
+def calculate_all_cc(cme_list, flr_list, threshold):
     cc_list = []
     print('calculating all correlation coefficients...')
     for i in cme_list:
         for j in flr_list:
-            coef = calculate_correlation_coefficient(i, j)
+            coef = calculate_correlation_coefficient(i, j, threshold)
             if coef is not None:
                 cc_list.append(coef)
-    print('calculating complete! totally {} valid correlations found.')
+    print('calculating complete! totally {} valid correlations found.'.format(len(cc_list)))
     return cc_list
 
 def plot_event_density(events, event_name):
@@ -227,4 +237,9 @@ def plot_both_density(cme, flr):
 
 
 if __name__ == '__main__':
-    store_cache(get_cme(), get_flr())
+    # store_cache(get_cme(), get_flr())
+    cme, flr, cc = load_cache(
+        'cme_from_2017-01-01_to_2021-11-30.json',
+        'flr_from_2017-01-01_to_2021-11-30.json',
+        'correlations_from_2017-01-01_to_2021-11-30.json'
+    )
