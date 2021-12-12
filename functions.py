@@ -5,18 +5,20 @@ import re
 from datetime import datetime
 from matplotlib import pyplot as plt
 import matplotlib.dates as mdates
+import matplotlib.patches as mpatches
 import networkx as nx
-import numpy as np
-from pandas import DataFrame
+import seaborn as sns
 import math
 
+# Global variables, users should not change them
 KEY = API.key
 CME_URL = API.cme
 FLR_URL = API.flr
+time_format = '%Y-%m-%d %H:%M'
 
+# Customizable global variables
 start_date = '2017-01-01'
 end_date = '2021-11-30'
-time_format = '%Y-%m-%d %H:%M'
 cc_threshold = 0.01
 
 
@@ -127,15 +129,15 @@ def decode_flr_raw(raw):
 
 
 def store_cache(cme, flr):
-    print('storing data from local cache...\n')
-    with open('cme_from_{}_to_{}.json'.format(start_date, end_date), 'w') as c:
+    print('storing data in local cache...\n')
+    with open('cache/cme_from_{}_to_{}.json'.format(start_date, end_date), 'w') as c:
         c.write(json.dumps(cme))
         print('cme storing complete! totally {} events stored.'.format(len(cme)))
-    with open('flr_from_{}_to_{}.json'.format(start_date, end_date), 'w') as f:
+    with open('cache/flr_from_{}_to_{}.json'.format(start_date, end_date), 'w') as f:
         f.write(json.dumps(flr))
         print('flr storing complete! totally {} events stored.'.format(len(flr)))
-    with open('correlations_from_{}_to_{}.json'.format(start_date, end_date), 'w') as cc:
-        c_list = calculate_all_cc(cme, flr, cc_threshold)
+    with open('cache/correlations_from_{}_to_{}.json'.format(start_date, end_date), 'w') as cc:
+        c_list = calculate_all_cc(cme, flr, 0.01)
         cc.write(json.dumps(c_list))
         print('correlations storing complete! totally {} correlations stored'.format(len(c_list)))
         print('')
@@ -215,31 +217,72 @@ def calculate_all_cc(cme_list, flr_list, threshold):
 
 def plot_event_density(events, event_name):
     t_series = [datetime.strptime(i['time'], time_format) for i in events]
-    p_series = [mdates.date2num(i) for i in t_series]
 
-    t_data = DataFrame(p_series, columns=[event_name])
+    plt.figure('Figure density')
+    sns.kdeplot(t_series, shade=True, label=event_name, color='goldenrod')
 
-    ax = t_data.plot(kind='kde')
-    ax.set_xbound(mdates.date2num(start_date), mdates.date2num(end_date))
-    x_ticks = ax.get_xticks()[::2]
-    ax.set_xticks(x_ticks)
-    x_label = [mdates.num2date(i).date() for i in x_ticks]
-    ax.set_xticklabels(x_label)
-    ax.set_xlabel('Dates')
-    ax.set_ylabel('Relative Density')
-    ax.set_yticks([])
-
+    plt.title('Kernel Density Estimation Plot of {} during {} to {}'.format(event_name, start_date, end_date))
+    plt.xlabel('Date')
+    plt.ylabel('Relative Denstiy')
     plt.show()
 
 
 def plot_both_density(cme, flr):
-    pass
+    t_cme = [datetime.strptime(i['time'], time_format) for i in cme]
+    t_flr = [datetime.strptime(i['time'], time_format) for i in flr]
+
+    plt.figure('Figure both')
+    sns.kdeplot(t_cme, shade=True, label='CME', color='lightcoral')
+    sns.kdeplot(t_flr, shade=True, label='FLR', color='goldenrod')
+
+    plt.legend(title='Event Type')
+    plt.title('Density Comparison of CME and FLR during {} to {}'.format(start_date, end_date))
+    plt.xlabel('Date')
+    plt.ylabel('Relative Density')
+    plt.show()
+
+
+def plot_network(cme, flr, cc):
+    plt.figure('Figure Net', dpi=400)
+
+    G = nx.DiGraph(time_period='From {} to {}'.format(start_date, end_date))
+    pos = {}
+    color = []
+    alpha = []
+    print('Hold on, network plotting might be slow...')
+    for i in cme:
+        G.add_node(i['cid'])
+        pos[i['cid']] = (10000*math.cos(i['lat'])*math.cos(i['lon']), 10000*math.cos(i['lat'])*math.sin(i['lon']))
+        color.append('lightcoral')
+    for i in flr:
+        G.add_node(i['fid'])
+        pos[i['fid']] = (10000*math.cos(i['lat'])*math.cos(i['lon']), 10000*math.cos(i['lat'])*math.sin(i['lon']))
+        color.append('goldenrod')
+    for i in cc:
+        if i[2] < 0:
+            G.add_edge(i[1], i[0])
+            alpha.append(i[2]**2)
+        else:
+            G.add_edge(i[0], i[1])
+            alpha.append(i[2]**2)
+
+    cme_legend = mpatches.Patch(color='lightcoral', label='CME')
+    flr_legend = mpatches.Patch(color='goldenrod', label='FLR')
+
+    plt.title('FLR and CME events correlation network graph')
+    plt.legend(handles=[cme_legend, flr_legend], loc='upper right')
+    nx.draw(G, pos=pos,
+            node_color=color,
+            node_size=5,
+            edge_color='dimgrey',
+            width=alpha,
+            arrows=True,
+            arrowsize=5,
+            arrowstyle='->',
+            )
+
+    plt.show()
 
 
 if __name__ == '__main__':
-    # store_cache(get_cme(), get_flr())
-    cme, flr, cc = load_cache(
-        'cme_from_2017-01-01_to_2021-11-30.json',
-        'flr_from_2017-01-01_to_2021-11-30.json',
-        'correlations_from_2017-01-01_to_2021-11-30.json'
-    )
+    print('c  - CME Density\nf  - FLR Density\ncf - Density Comparison\nm  - Events Correlation Map')
