@@ -22,10 +22,10 @@ end_date = '2021-11-30'
 cc_threshold = 0.01
 
 
-def get_cme():
+def get_cme(start, end):
     parameters = {
-        'startDate': start_date,
-        'endDate': end_date,
+        'startDate': start,
+        'endDate': end,
         'api_key': KEY
     }
     print('Fetching data from CMEAnalysis...')
@@ -69,10 +69,10 @@ def decode_cme_raw(raw):
     return d
 
 
-def get_flr():
+def get_flr(start, end):
     parameters = {
-        'startDate': start_date,
-        'endDate': end_date,
+        'startDate': start,
+        'endDate': end,
         'api_key': KEY
     }
     print('Fetching data from FLR...')
@@ -128,15 +128,15 @@ def decode_flr_raw(raw):
     return d
 
 
-def store_cache(cme, flr):
+def store_cache(cme, flr, s, e):
     print('storing data in local cache...\n')
-    with open('cache/cme_from_{}_to_{}.json'.format(start_date, end_date), 'w') as c:
+    with open('cache/cme_from_{}_to_{}.json'.format(s, e), 'w') as c:
         c.write(json.dumps(cme))
         print('cme storing complete! totally {} events stored.'.format(len(cme)))
-    with open('cache/flr_from_{}_to_{}.json'.format(start_date, end_date), 'w') as f:
+    with open('cache/flr_from_{}_to_{}.json'.format(s, e), 'w') as f:
         f.write(json.dumps(flr))
         print('flr storing complete! totally {} events stored.'.format(len(flr)))
-    with open('cache/correlations_from_{}_to_{}.json'.format(start_date, end_date), 'w') as cc:
+    with open('cache/correlations_from_{}_to_{}.json'.format(s, e), 'w') as cc:
         c_list = calculate_all_cc(cme, flr, 0.01)
         cc.write(json.dumps(c_list))
         print('correlations storing complete! totally {} correlations stored'.format(len(c_list)))
@@ -285,4 +285,9 @@ def plot_network(cme, flr, cc):
 
 
 if __name__ == '__main__':
-    print('c  - CME Density\nf  - FLR Density\ncf - Density Comparison\nm  - Events Correlation Map')
+    store_cache(get_cme(start_date, end_date), get_flr(start_date, end_date), start_date, end_date)
+    load_cache(
+        'cache/cme_from_{}_to_{}.json'.format(start_date, end_date),
+        'cache/flr_from_{}_to_{}.json'.format(start_date, end_date),
+        'cache/correlations_from_{}_to_{}.json'.format(start_date, end_date)
+    )
