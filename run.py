@@ -8,6 +8,8 @@ def check_date(d):
         if result_date.date() > date.today():
             print("It's a future time, please input a date in the past:")
             return False
+        elif result_date.date() < date(2010,6,13):
+            print('The earliest data available is from 2010-6-13, please input a date later than this:')
         else:
             return result_date.date()
     except ValueError:
