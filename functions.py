@@ -215,7 +215,7 @@ def calculate_all_cc(cme_list, flr_list, threshold):
     print('calculating complete! totally {} valid correlations found.'.format(len(cc_list)))
     return cc_list
 
-def plot_event_density(events, event_name):
+def plot_event_density(events, event_name, start_date, end_date):
     t_series = [datetime.strptime(i['time'], time_format) for i in events]
 
     plt.figure('Figure density')
@@ -227,7 +227,7 @@ def plot_event_density(events, event_name):
     plt.show()
 
 
-def plot_both_density(cme, flr):
+def plot_both_density(cme, flr, start_date, end_date):
     t_cme = [datetime.strptime(i['time'], time_format) for i in cme]
     t_flr = [datetime.strptime(i['time'], time_format) for i in flr]
 
@@ -282,12 +282,3 @@ def plot_network(cme, flr, cc):
             )
 
     plt.show()
-
-
-if __name__ == '__main__':
-    store_cache(get_cme(start_date, end_date), get_flr(start_date, end_date), start_date, end_date)
-    load_cache(
-        'cache/cme_from_{}_to_{}.json'.format(start_date, end_date),
-        'cache/flr_from_{}_to_{}.json'.format(start_date, end_date),
-        'cache/correlations_from_{}_to_{}.json'.format(start_date, end_date)
-    )

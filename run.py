@@ -86,11 +86,11 @@ g_type = check_g_type(g_type)
 
 while True:
     if g_type == 'c':
-        plot_event_density(cme, 'CME')
+        plot_event_density(cme, 'CME', start_date, end_date)
     elif g_type == 'f':
-        plot_event_density(flr, 'FLR')
+        plot_event_density(flr, 'FLR', start_date, end_date)
     elif g_type == 'cf':
-        plot_both_density(cme, flr)
+        plot_both_density(cme, flr, start_date, end_date)
     elif g_type == 'm':
         plot_network(cme, flr, cc)
     print('Any other graph you want to see? type "no" to exit the program')
