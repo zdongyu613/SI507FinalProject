@@ -35,7 +35,7 @@ def get_cme(start, end):
 
     print('organizing json...')
     d = decode_cme_raw(raw)
-    print('organization complete! totally {} cme events during {} to {}\n'.format(len(d), start_date, end_date))
+    print('organization complete! totally {} cme events during {} to {}\n'.format(len(d), start, end))
 
     return d
 
@@ -82,7 +82,7 @@ def get_flr(start, end):
 
     print('organizing json...')
     d = decode_flr_raw(raw)
-    print('organization complete! totally {} flr events during {} to {}\n'.format(len(d), start_date, end_date))
+    print('organization complete! totally {} flr events during {} to {}\n'.format(len(d), start, end))
 
     return d
 
